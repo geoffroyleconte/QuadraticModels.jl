@@ -10,11 +10,15 @@ using SparseArrays
 
 import NLPModels:
     objgrad, objgrad!, obj,grad, grad!,
-    hess_coord, hess, hess_op, hprod,
+    hess_coord, hess, hess_op, hprod, hprod!,
     cons, cons!,
-    jac_coord, jac, jac_op, jprod, jtprod
+    jac_coord, jac, jac_op, jprod, jprod!, jtprod, jtprod!
 
-export QuadraticModel
+export AbstractQuadraticModel, QuadraticModel
+export objgrad, objgrad!, obj,grad, grad!,
+       hess_coord, hess, hess_op, hprod, hprod!,
+       cons, cons!,
+       jac_coord, jac, jac_op, jprod, jprod!, jtprod, jtprod!
 
 include("qpmodel.jl")
 

@@ -81,7 +81,7 @@ end
 
 function grad!(qp::AbstractQuadraticModel, x::AbstractVector, g::AbstractVector)
     v = qp.data.opH * x
-    @. g = qp.data.c + v
+    @. g[1:qp.meta.nvar] = qp.data.c + v
     qp.counters.neval_hprod += 1
     g
 end
@@ -91,6 +91,35 @@ hess_coord(qp::AbstractQuadraticModel, ::AbstractVector; kwargs...) = findnz(qp.
 hess(qp::AbstractQuadraticModel, ::AbstractVector; kwargs...) = qp.data.H
 
 hess_op(qp::AbstractQuadraticModel, ::AbstractVector; kwargs...) = qp.data.opH
+
+function hprod(qp::AbstractQuadraticModel, x::AbstractVector, v::AbstractVector; kwargs...)
+    Hv = Vector{eltype(v)}(qp.meta.nvar)
+    hprod!(qp, x, v, Hv; kwargs...)
+end
+
+function hprod!(qp::AbstractQuadraticModel, x::AbstractVector, v::AbstractVector, Hv::AbstractVector; kwargs...)
+    # https://github.com/JuliaLang/julia/pull/22200
+    n = qp.meta.nvar
+    length(x) == n || throw(DimensionMismatch())
+    length(v) == n || throw(DimensionMismatch())
+    length(Hv) == n || throw(DimensionMismatch())
+
+    # assume only the lower triangle of H is stored
+    H = qp.data.H
+    fill!(Hv, 0.0)
+    @inbounds for j = 1 : n
+      vj = v[j]
+      tmp = 0.0
+      @inbounds for k = H.colptr[j] : (H.colptr[j + 1] - 1)
+        i = H.rowval[k]
+        hij = H.nzval[k]
+        Hv[i] += hij * vj
+        i == j || (tmp += hij * v[i])
+      end
+      Hv[j] += tmp
+    end
+    x
+end
 
 function cons(qp::AbstractQuadraticModel, x::AbstractVector)
     c = Vector{eltype(x)}(undef, qp.meta.ncon)
@@ -109,23 +138,20 @@ jac(qp::AbstractQuadraticModel, ::AbstractVector; kwargs...) = qp.data.A
 
 jac_op(qp::AbstractQuadraticModel, ::AbstractVector; kwargs...) = LinearOperator(qp.data.A)
 
-function hprod(qp::AbstractQuadraticModel, ::AbstractVector; kwargs...)
-    @closure v -> begin
-        qp.counters.neval_hprod += 1
-        qp.data.opH * v
-    end
+function jprod(qp::AbstractQuadraticModel, x::AbstractVector, v::AbstractVector; kwargs...)
+    Jv = Vector{Float64}(undef, qp.meta.ncon)
+    jprod!(qp, x, v, Jv; kwargs...)
 end
 
-function jprod(qp::AbstractQuadraticModel, ::AbstractVector; kwargs...)
-    @closure v -> begin
-        qp.counters.neval_jprod += 1
-        qp.data.A * v
-    end
+function jprod!(qp::AbstractQuadraticModel, x::AbstractVector, v::AbstractVector, Jv::AbstractVector; kwargs...)
+    mul!(Jv, qp.data.A, v)
 end
 
-function jtprod(qp::AbstractQuadraticModel, ::AbstractVector; kwargs...)
-    @closure v -> begin
-        qp.counters.neval_jtprod += 1
-        qp.data.A' * v
-    end
+function jtprod(qp::AbstractQuadraticModel, x::AbstractVector, u::AbstractVector; kwargs...)
+    Jtu = Vector{Float64}(undef, qp.meta.nvar)
+    jtprod!(qp, x, u, Jtu; kwargs...)
+end
+
+function jtprod!(qp::AbstractQuadraticModel, x::AbstractVector, u::AbstractVector, Jtu::AbstractVector; kwargs...)
+    mul!(Jtu, transpose(qp.data.A), u)
 end
