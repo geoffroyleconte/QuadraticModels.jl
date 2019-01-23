@@ -1,3 +1,5 @@
+# TODO: make hessop preallocated
+
 mutable struct QPData
     c0::Float64                 # constant term in objective
     c::AbstractVector{Float64}  # linear term
@@ -60,15 +62,18 @@ function objgrad(qp::AbstractQuadraticModel, x::AbstractVector)
 end
 
 function objgrad!(qp::AbstractQuadraticModel, x::AbstractVector, g::AbstractVector)
-    v = qp.data.opH * x
-    @. g = qp.data.c + v
-    f = qp.data.c0 + dot(qp.data.c, x) + 0.5 * dot(v, x)
+    f1 = dot(qp.data.c, x)
+    hprod!(qp, x, x, g[1:qp.meta.nvar])
+    @views f2 = 0.5 * dot(g[1:qp.meta.nvar], x)
+    @. g[1:qp.meta.nvar] += qp.data.c
+    f = qp.data.c0 + f1 + f2
     qp.counters.neval_hprod += 1
     (f, g)
 end
 
 function obj(qp::AbstractQuadraticModel, x::AbstractVector)
-    v = qp.data.opH * x
+    v = Vector{eltype(x)}(undef, qp.meta.nvar)
+    hprod!(qp, x, x, v)
     f = qp.data.c0 + dot(qp.data.c, x) + 0.5 * dot(v, x)
     qp.counters.neval_hprod += 1
     f
@@ -80,8 +85,8 @@ function grad(qp::AbstractQuadraticModel, x::AbstractVector)
 end
 
 function grad!(qp::AbstractQuadraticModel, x::AbstractVector, g::AbstractVector)
-    v = qp.data.opH * x
-    @. g[1:qp.meta.nvar] = qp.data.c + v
+    @views hprod!(qp, x, x, g[1:qp.meta.nvar])
+    @. g[1:qp.meta.nvar] += qp.data.c
     qp.counters.neval_hprod += 1
     g
 end
@@ -107,6 +112,10 @@ function hprod!(qp::AbstractQuadraticModel, x::AbstractVector, v::AbstractVector
     # assume only the lower triangle of H is stored
     H = qp.data.H
     fill!(Hv, 0.0)
+    # fast return in case of a zero matrix
+    if H.colptr[H.n + 1] == 1
+        return Hv
+    end
     @inbounds for j = 1 : n
       vj = v[j]
       tmp = 0.0
@@ -118,7 +127,7 @@ function hprod!(qp::AbstractQuadraticModel, x::AbstractVector, v::AbstractVector
       end
       Hv[j] += tmp
     end
-    x
+    Hv
 end
 
 function cons(qp::AbstractQuadraticModel, x::AbstractVector)
