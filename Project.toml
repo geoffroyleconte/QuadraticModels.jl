@@ -13,7 +13,7 @@ SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
 
 [compat]
 LinearOperators = "0.7.0, 1"
-NLPModels = "0.15"
+NLPModels = "0.16"
 NLPModelsModifiers = "0.2"
 Requires = "0.3, 0.4, 0.5, 1.0"
 julia = "^1.0.0"
