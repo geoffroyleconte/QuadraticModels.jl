@@ -209,10 +209,14 @@ function presolve(
   # copy if same vector
   lcon === ucon && (lcon = copy(lcon))
   lvar === uvar && (lvar = copy(lvar))
+  # bounds on dual variables y
+  ly = fill!(S(undef, ncon), -T(Inf))
+  uy = fill!(S(undef, ncon), T(Inf))
   row_cnt = zeros(Int, ncon)
   col_cnt = zeros(Int, nvar)
   kept_rows = fill(true, ncon)
   kept_cols = fill(true, nvar)
+  s = zeros(Int, ncon) # s[k] = row to be concatenated to row k
   nconps = ncon
   nvarps = nvar
   xps = S(undef, nvar)
